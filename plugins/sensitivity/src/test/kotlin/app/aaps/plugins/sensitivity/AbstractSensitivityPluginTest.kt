@@ -10,7 +10,6 @@ import app.aaps.core.keys.interfaces.NonPreferenceKey
 import app.aaps.core.keys.interfaces.Preferences
 import app.aaps.shared.tests.TestBase
 import com.google.common.truth.Truth.assertThat
-import kotlinx.serialization.json.JsonObject
 import org.junit.jupiter.api.Test
 import org.mockito.Mock
 
@@ -37,10 +36,6 @@ class AbstractSensitivityPluginTest : TestBase() {
         override val syncedKeys: List<NonPreferenceKey> = emptyList()
 
         override fun reloadInternalState() {}
-
-        override fun configuration(): JsonObject = JsonObject(emptyMap())
-
-        override fun applyConfiguration(configuration: JsonObject) {}
     }
 
     @Test

@@ -51,8 +51,6 @@ import app.aaps.core.objects.constraints.ConstraintObject
 import app.aaps.core.objects.extensions.convertedToAbsolute
 import app.aaps.core.objects.extensions.getPassedDurationToTimeInMinutes
 import app.aaps.core.objects.extensions.plannedRemainingMinutes
-import app.aaps.core.objects.extensions.put
-import app.aaps.core.objects.extensions.store
 import app.aaps.core.objects.extensions.target
 import app.aaps.core.objects.profile.ProfileSealed
 import app.aaps.core.ui.compose.icons.IcPluginOpenAPS
@@ -65,7 +63,6 @@ import app.aaps.plugins.aps.keys.ApsIntentKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonObject
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Provider
@@ -525,17 +522,6 @@ open class OpenAPSAutoISFPlugin @Inject constructor(
     )
 
     override fun reloadInternalState() {}
-
-    override fun configuration(): JsonObject =
-        JsonObject(emptyMap())
-            .put(BooleanKey.ApsUseDynamicSensitivity, preferences)
-            .put(IntKey.ApsDynIsfAdjustmentFactor, preferences)
-
-    override fun applyConfiguration(configuration: JsonObject) {
-        configuration
-            .store(BooleanKey.ApsUseDynamicSensitivity, preferences)
-            .store(IntKey.ApsDynIsfAdjustmentFactor, preferences)
-    }
 
     // Rounds value to 'digits' decimal places
     // different for negative numbers fun round(value: Double, digits: Int): Double = BigDecimal(value).setScale(digits, RoundingMode.HALF_EVEN).toDouble()

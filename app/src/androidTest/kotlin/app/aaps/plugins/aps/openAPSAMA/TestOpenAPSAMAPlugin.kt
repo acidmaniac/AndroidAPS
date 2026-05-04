@@ -44,7 +44,6 @@ import app.aaps.plugins.aps.events.EventResetOpenAPSGui
 import app.aaps.plugins.aps.openAPSSMB.GlucoseStatusCalculatorSMB
 import app.aaps.plugins.aps.utils.ScriptReader
 import dagger.android.HasAndroidInjector
-import kotlinx.serialization.json.JsonObject
 import org.json.JSONException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -67,7 +66,7 @@ class TestOpenAPSAMAPlugin @Inject constructor(
     private val dateUtil: DateUtil,
     private val persistenceLayer: PersistenceLayer,
     private val glucoseStatusProvider: GlucoseStatusProvider,
-    override val preferences: Preferences,
+    private val preferences: Preferences,
     private val importExportPrefs: ImportExportPrefs,
     private val config: Config,
     private val glucoseStatusCalculatorSMB: GlucoseStatusCalculatorSMB,
@@ -295,8 +294,4 @@ class TestOpenAPSAMAPlugin @Inject constructor(
     override val syncedKeys: List<NonPreferenceKey> = emptyList()
 
     override fun reloadInternalState() {}
-
-    override fun configuration(): JsonObject = JsonObject(emptyMap())
-    override fun applyConfiguration(configuration: JsonObject) {
-    }
 }

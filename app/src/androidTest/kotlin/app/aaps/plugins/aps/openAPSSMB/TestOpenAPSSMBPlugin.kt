@@ -44,7 +44,6 @@ import app.aaps.plugins.aps.events.EventOpenAPSUpdateGui
 import app.aaps.plugins.aps.events.EventResetOpenAPSGui
 import app.aaps.plugins.aps.utils.ScriptReader
 import dagger.android.HasAndroidInjector
-import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.floor
@@ -63,7 +62,7 @@ open class TestOpenAPSSMBPlugin @Inject constructor(
     private val processedTbrEbData: ProcessedTbrEbData,
     private val hardLimits: HardLimits,
     private val profiler: Profiler,
-    override val preferences: Preferences,
+    private val preferences: Preferences,
     protected val dateUtil: DateUtil,
     private val persistenceLayer: PersistenceLayer,
     private val glucoseStatusProvider: GlucoseStatusProvider,
@@ -97,10 +96,6 @@ open class TestOpenAPSSMBPlugin @Inject constructor(
     override val syncedKeys: List<NonPreferenceKey> = emptyList()
 
     override fun reloadInternalState() {}
-
-    override fun configuration(): JsonObject = JsonObject(emptyMap())
-    override fun applyConfiguration(configuration: JsonObject) {
-    }
 
     override var lastAPSResult: DetermineBasalResultSMBFromJS? = null
 

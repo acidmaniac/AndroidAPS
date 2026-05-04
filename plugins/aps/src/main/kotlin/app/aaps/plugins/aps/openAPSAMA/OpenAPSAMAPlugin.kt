@@ -50,7 +50,6 @@ import app.aaps.plugins.aps.keys.ApsIntentKey
 import app.aaps.plugins.aps.openAPSSMB.GlucoseStatusCalculatorSMB
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -315,9 +314,6 @@ class OpenAPSAMAPlugin @Inject constructor(
     override val syncedKeys: List<NonPreferenceKey> = emptyList()
 
     override fun reloadInternalState() {}
-
-    override fun configuration(): JsonObject = JsonObject(emptyMap())
-    override fun applyConfiguration(configuration: JsonObject) {}
 
     override fun getPreferenceScreenContent() = PreferenceSubScreenDef(
         key = "openapsma_settings",

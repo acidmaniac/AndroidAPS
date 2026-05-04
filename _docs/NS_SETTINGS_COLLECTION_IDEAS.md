@@ -4,6 +4,21 @@ Brainstorming for what AAPS could store in the Nightscout APIv3 `settings` colle
 Transport layer is in place (functional SDK + no-op plugin stubs). Payload, identifier
 convention, and triggering rules are still open.
 
+## Implementation status
+
+| Component                                                                              | State             |
+|----------------------------------------------------------------------------------------|-------------------|
+| APIv3 SDK methods (get / search / history / create / patch / delete)                   | ✅ done            |
+| Plugin no-op stubs (`LoadSettingsWorker`, `dbOperationSettings`, WS branch)            | ✅ done            |
+| `ConfigExportImport` interface refactor (preferences, syncedKeys, reloadInternalState) | ✅ done (step 1)   |
+| Plugin adoption of declarative `syncedKeys`                                            | ✅ done (step 1)   |
+| `QuickWizard` as `ConfigExportImport`                                                  | ✅ done (step 1.5) |
+| Unified `put`/`store`/`observeChange` over `NonPreferenceKey`                          | ✅ done (step 2)   |
+| `RunningConfigurationImpl` schema-driven build/apply                                   | ⏳ next (step 3)   |
+| `RunningConfigurationPublisher` (master writer)                                        | ⏳ phase 1         |
+| Replace `LoadSettingsWorker` no-op with real loader                                    | ⏳ phase 1         |
+| Replace WS `settings` no-op with apply path                                            | ⏳ phase 1         |
+
 ## What the collection actually is
 
 - Generic NS APIv3 collection, identified per-app: each "app" (xdrip, AAPS, etc.) keeps
@@ -154,8 +169,11 @@ list, opted into per-client by an explicit confirmation on the master phone.
 
 ### Phase 1 — RunningConfiguration migration
 
-- Identify the actual fields currently smuggled into devicestatus's
-  configuration block. (TODO: enumerate from `RunningConfiguration` source.)
+- Fields currently smuggled into devicestatus's configuration block (see Round 5
+  enumeration): `insulin`, `insulinConfiguration`, `aps`, `apsConfiguration`,
+  `sensitivity`, `sensitivityConfiguration`, `smoothing`, `safetyConfiguration`,
+  `pump`, `version`, plus a nested `overviewConfiguration` (units, all warning
+  thresholds, `QuickWizard`, `TempTargetPresets`, `AutosensUsedOnMainPhone`).
 - Migrate them into `runningConfig` section of the new doc.
 - Master writes via PATCH on every preference change that touches a synced key.
 - Clients subscribe to settings WS, observe PATCH, update in-memory cache.
@@ -208,8 +226,6 @@ requests an end, both code paths converge on "scene is now null" — fine.
 
 ## Open issues / decisions still pending
 
-- **What is the canonical list of fields in `runningConfig`?** Need to read
-  the current `RunningConfiguration` source and enumerate.
 - **Pairing flow.** Does the existing wear pairing extend to AAPSClient pairing
   for the `trustedClients` list, or do we need a fresh QR/code flow?
 - **What `installId` actually is.** A UUID in prefs is fine, but it must be
@@ -339,39 +355,101 @@ Components:
 Pre-step before phase 1 — **single-source-of-truth refactor of
 `RunningConfigurationImpl`** (round 5b, below).
 
-### Round 5b — refactor before publisher work
+### Round 5b — refactor before publisher work (initial sketch, superseded)
 
-Problem: introducing observation would create a third parallel list of synced
-preference keys. Today there are already two:
-`buildOverviewConfiguration()` (build JSON) and `applyOverviewConfiguration()`
-(apply JSON). The publisher would need a third (observe). All three must stay
-in sync.
+**Note:** the initial proposal here was a centralized `SyncedConfigSchema` object with
+typed lists grouped by key type (`intKeys`, `unitDoubleKeys`, `stringKeys`). This was
+superseded by Rounds 6-8 below. The actual landed design **decentralizes** the schema —
+each `ConfigExportImport` plugin owns its own `syncedKeys`. No central object.
 
-Fix: a single declarative schema. The existing `JsonObject.put` / `.store` /
-`Preferences.observe` are typed per concrete `*PreferenceKey` subtype, so the
-schema is grouped by key type:
+The original problem identification still holds: introducing observation would create
+a third parallel list of synced preference keys (build / apply / observe), and all
+three must stay in sync. The fix shipped — it just looks different from this sketch.
 
-```kotlin
-object SyncedConfigSchema {
-    val intKeys: List<IntPreferenceKey> = listOf(...)         // 15 entries
-    val unitDoubleKeys: List<UnitDoublePreferenceKey> = listOf(...)  // 2 entries
-    val stringKeys: List<StringNonPreferenceKey> = listOf(...)       // 3 entries
-    val allKeys: List<NonPreferenceKey> = intKeys + unitDoubleKeys + stringKeys
-}
-```
+### Round 6 — `ConfigExportImport` as the single source of truth
 
-`buildOverviewConfiguration` and `applyOverviewConfiguration` become typed
-`forEach` over the lists. The non-overview computed fields (`insulin`,
-`aps`, etc.) and the special-case `AutosensUsedOnMainPhone` stay as is —
-they're not 1:1 preference-keyed and don't fit the schema. They get folded
-into the publisher's plugin-switch trigger logic in phase 1 proper.
+Realized the schema fits better on the existing `ConfigExportImport` interface than
+on a separate object. Each plugin already implements this interface (Insulin, APS,
+Sensitivity, Safety) and owns its own preference keys. Adding `syncedKeys` to the
+interface lets each plugin declare what it owns — no central registry needed.
 
-Refactor scope: only `RunningConfigurationImpl.kt` plus a new
-`SyncedConfigSchema.kt` next to it. Existing tests
-(`androidTest/.../RunningConfigurationTest.kt`) should continue to pass
-unchanged — that's the validation.
+Bonus: the same insight applies to `QuickWizard` (`@Singleton`, owns
+`StringNonKey.QuickWizard`). Made it a `ConfigExportImport` too. `TempTargetPresets`
+has no domain class (every consumer reads the preference fresh — no cache to
+invalidate), so its key stays free-floating in `RunningConfigurationImpl`'s overview
+block.
 
-Once the schema is in place, the publisher reuses
-`SyncedConfigSchema.allKeys` to wire observation, and reuses
-`RunningConfigurationImpl.configuration()` to build the JSON. No duplicated
-list of keys.
+### Round 7 — central orchestration vs per-plugin override
+
+Considered two shapes:
+
+- **A**: keep `applyConfiguration(JsonObject)` on the interface, force every plugin
+  to override it (most write a 1-line delegation to a helper). Compile-error if a
+  cache-having plugin forgets to wire the rebuild.
+- **B**: drop `applyConfiguration` from the interface; central orchestration in
+  `RunningConfigurationImpl` writes prefs directly via `.store()` then calls
+  `reloadInternalState()` per plugin (default no-op for cacheless plugins, override
+  in cache-having plugins like InsulinImpl).
+
+Picked **B**. Reasoning: most plugins have no cache, so option A's forced override
+is busywork. The risk in B (cache-having plugin forgets to override
+`reloadInternalState`) is small — cache-having plugins are rare and obvious to their
+authors. Plugins shouldn't see JSON at all; that's the orchestrator's concern.
+
+### Round 8 — `reloadInternalState` abstract, not defaulted
+
+Going further: even though most plugins want a no-op `reloadInternalState`, making
+it abstract (no default body) forces every plugin to write `override fun
+reloadInternalState() {}` — a one-line acknowledgement that's free for cacheless
+plugins and forces awareness for cache-having ones. Future-proofs against silent
+stale-cache bugs.
+
+### Round 9 — incremental implementation
+
+Sliced the refactor into reviewable steps that each compile cleanly with no behavior
+change:
+
+- **Step 1.** Add `preferences`, `syncedKeys`, abstract `reloadInternalState()` to
+  `ConfigExportImport`. Keep `configuration()` / `applyConfiguration()` on the
+  interface (still required by current callers; will be removed once
+  `RunningConfigurationImpl` is rewritten). Adapt every implementer: declare
+  `syncedKeys` matching its existing `configuration()` chain. Camp 1 plugins
+  (Safety, Sensitivity ×3, APS ×3) use empty `reloadInternalState`. InsulinImpl uses
+  `reloadInternalState() = loadSettings()`.
+- **Step 1.5.** Make `QuickWizard` a `ConfigExportImport` — declarative readiness, no
+  wire-shape change yet.
+- **Step 2 (R1).** Replace 6 typed `JsonObject.put` / `.store` overloads with one
+  each over `NonPreferenceKey`, using `when` dispatch. Add
+  `Preferences.observeChange(NonPreferenceKey): Flow<Unit>` extension. Existing
+  callers compile unchanged via subtype resolution.
+- **Step 3 (next).** Migrate `RunningConfigurationImpl.buildOverviewConfiguration`
+  and `applyOverviewConfiguration` to iterate `SyncedConfigSchema.overviewKeys` (the
+  free-floating overview keys that have no plugin owner). Migrate per-plugin
+  sub-objects in `configuration()` and `apply(NSDeviceStatus.Configuration)` to
+  iterate `plugin.syncedKeys` instead of calling `plugin.configuration()` /
+  `plugin.applyConfiguration()`. Side effect: SensitivityAAPSPlugin's
+  duplicate-`AutosensMin` / missing-`AutosensMax` bug disappears (the chain is gone).
+- **Step 4.** Once nothing else calls them, delete `configuration()` and
+  `applyConfiguration()` from `ConfigExportImport` and remove the dead overrides.
+- **Step 5+.** Phase 1 proper: `RunningConfigurationPublisher`, real
+  `LoadSettingsWorker`, WS apply path, dual-write to devicestatus during transition.
+
+### Round 9 side-discussion — TT presets and decentralized ownership
+
+Considered making `TempTargetManagementViewModel` a `ConfigExportImport`. Wrong
+shape:
+
+- ViewModels are lifecycle-scoped, not application-scoped — can't be enumerated as
+  `ConfigExportImport` providers when no UI is active.
+- Multiple call sites read/write `StringNonKey.TempTargetPresets` (the VM, scenes,
+  automation, QuickLaunch) — none is the natural owner.
+
+Verified by grep: every consumer reads `preferences.get(StringNonKey.TempTargetPresets)`
+fresh on each call. **No cache anywhere.** Therefore no `reloadInternalState()` is
+needed — and no domain class is needed either. The key stays in
+`RunningConfigurationImpl`'s overview block as a free-floating preference. That's
+correct ownership when there's no domain object wrapping the preference.
+
+InsulinImpl and QuickWizard are different: both have in-memory caches that need
+rebuilding when the preference changes externally. Both became `ConfigExportImport`
+with non-trivial `reloadInternalState`.

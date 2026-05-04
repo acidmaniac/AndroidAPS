@@ -41,7 +41,7 @@ import javax.inject.Singleton
 
 @Singleton
 class InsulinImpl @Inject constructor(
-    override val preferences: Preferences,
+    private val preferences: Preferences,
     val rh: ResourceHelper,
     val profileFunction: ProfileFunction,
     val persistenceLayer: PersistenceLayer,
@@ -189,7 +189,7 @@ class InsulinImpl @Inject constructor(
     }
 
     @Synchronized
-    override fun configuration(): JsonObject {
+    private fun configuration(): JsonObject {
         val jsonArray = buildJsonArray {
             insulins.forEach {
                 try {
@@ -205,7 +205,7 @@ class InsulinImpl @Inject constructor(
     }
 
     @Synchronized
-    override fun applyConfiguration(configuration: JsonObject) {
+    private fun applyConfiguration(configuration: JsonObject) {
         insulins.clear()
 
         val insulinArray = configuration["insulin"] as? JsonArray

@@ -53,8 +53,6 @@ import app.aaps.core.objects.constraints.ConstraintObject
 import app.aaps.core.objects.extensions.convertedToAbsolute
 import app.aaps.core.objects.extensions.getPassedDurationToTimeInMinutes
 import app.aaps.core.objects.extensions.plannedRemainingMinutes
-import app.aaps.core.objects.extensions.put
-import app.aaps.core.objects.extensions.store
 import app.aaps.core.objects.extensions.target
 import app.aaps.core.objects.profile.ProfileSealed
 import app.aaps.core.ui.compose.icons.IcPluginOpenAPS
@@ -68,7 +66,6 @@ import app.aaps.plugins.aps.openAPS.TddStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -578,17 +575,6 @@ open class OpenAPSSMBPlugin @Inject constructor(
     )
 
     override fun reloadInternalState() {}
-
-    override fun configuration(): JsonObject =
-        JsonObject(emptyMap())
-            .put(BooleanKey.ApsUseDynamicSensitivity, preferences)
-            .put(IntKey.ApsDynIsfAdjustmentFactor, preferences)
-
-    override fun applyConfiguration(configuration: JsonObject) {
-        configuration
-            .store(BooleanKey.ApsUseDynamicSensitivity, preferences)
-            .store(IntKey.ApsDynIsfAdjustmentFactor, preferences)
-    }
 
     override fun getPreferenceScreenContent() = PreferenceSubScreenDef(
         key = "openapssmb_settings",

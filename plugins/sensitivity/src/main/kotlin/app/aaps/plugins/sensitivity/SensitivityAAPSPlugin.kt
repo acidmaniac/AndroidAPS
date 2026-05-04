@@ -18,8 +18,6 @@ import app.aaps.core.keys.DoubleKey
 import app.aaps.core.keys.IntKey
 import app.aaps.core.keys.interfaces.NonPreferenceKey
 import app.aaps.core.keys.interfaces.Preferences
-import app.aaps.core.objects.extensions.put
-import app.aaps.core.objects.extensions.store
 import app.aaps.core.ui.compose.icons.IcAs
 import app.aaps.core.ui.compose.preference.PreferenceSubScreenDef
 import app.aaps.core.utils.MidnightUtils
@@ -27,7 +25,6 @@ import app.aaps.core.utils.Percentile
 import app.aaps.plugins.sensitivity.extensions.isPSEvent5minBack
 import app.aaps.plugins.sensitivity.extensions.isTherapyEventEvent5minBack
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.JsonObject
 import java.util.Arrays
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -159,21 +156,6 @@ class SensitivityAAPSPlugin @Inject constructor(
     )
 
     override fun reloadInternalState() {}
-
-    override fun configuration(): JsonObject =
-        JsonObject(emptyMap())
-            .put(IntKey.AutosensPeriod, preferences)
-            .put(DoubleKey.AbsorptionMaxTime, preferences)
-            .put(DoubleKey.AutosensMin, preferences)
-            .put(DoubleKey.AutosensMin, preferences)
-
-    override fun applyConfiguration(configuration: JsonObject) {
-        configuration
-            .store(IntKey.AutosensPeriod, preferences)
-            .store(DoubleKey.AutosensMin, preferences)
-            .store(DoubleKey.AutosensMax, preferences)
-            .store(DoubleKey.AbsorptionMaxTime, preferences)
-    }
 
     override fun getPreferenceScreenContent() = PreferenceSubScreenDef(
         key = "sensitivity_aaps_settings",

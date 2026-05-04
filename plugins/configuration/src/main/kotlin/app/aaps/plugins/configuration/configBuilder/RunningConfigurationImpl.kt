@@ -7,6 +7,7 @@ import app.aaps.core.interfaces.aps.APSResult
 import app.aaps.core.interfaces.aps.Sensitivity
 import app.aaps.core.interfaces.configuration.Config
 import app.aaps.core.interfaces.configuration.ConfigBuilder
+import app.aaps.core.interfaces.configuration.ConfigExportImport
 import app.aaps.core.interfaces.constraints.ConstraintsChecker
 import app.aaps.core.interfaces.insulin.Insulin
 import app.aaps.core.interfaces.logging.AAPSLogger
@@ -19,10 +20,7 @@ import app.aaps.core.interfaces.pump.PumpSync
 import app.aaps.core.interfaces.pump.defs.fillFor
 import app.aaps.core.interfaces.smoothing.Smoothing
 import app.aaps.core.keys.BooleanNonKey
-import app.aaps.core.keys.IntKey
 import app.aaps.core.keys.StringKey
-import app.aaps.core.keys.StringNonKey
-import app.aaps.core.keys.UnitDoubleKey
 import app.aaps.core.keys.interfaces.Preferences
 import app.aaps.core.nssdk.interfaces.RunningConfiguration
 import app.aaps.core.nssdk.localmodel.devicestatus.NSDeviceStatus
@@ -60,24 +58,23 @@ class RunningConfigurationImpl @Inject constructor(
         if (!pumpInterface.isInitialized()) return json
         if (counter++ % every == 0)
             try {
-                val insulinInterface = insulin
                 val sensitivityInterface = activePlugin.activeSensitivity
                 val safetyInterface = activePlugin.activeSafety
                 val smoothingInterface = activePlugin.activeSmoothing
                 // APS interface is needed for dynamic sensitivity calculation
                 val apsInterface = activePlugin.activeAPS
 
-                json.put("insulin", insulinInterface.id.value)
-                json.put("insulinConfiguration", JSONObject(insulinInterface.configuration().toString()))
+                json.put("insulin", insulin.id.value)
+                json.put("insulinConfiguration", JSONObject(buildFromPlugin(insulin).toString()))
                 apsInterface?.let {
                     json.put("aps", it.algorithm.name)
-                    json.put("apsConfiguration", JSONObject(it.configuration().toString()))
+                    json.put("apsConfiguration", JSONObject(buildFromPlugin(it).toString()))
                 }
                 json.put("sensitivity", sensitivityInterface.id.value)
-                json.put("sensitivityConfiguration", JSONObject(sensitivityInterface.configuration().toString()))
+                json.put("sensitivityConfiguration", JSONObject(buildFromPlugin(sensitivityInterface).toString()))
                 json.put("smoothing", smoothingInterface.javaClass.simpleName)
                 json.put("overviewConfiguration", JSONObject(buildOverviewConfiguration().toString()))
-                json.put("safetyConfiguration", JSONObject(safetyInterface.configuration().toString()))
+                json.put("safetyConfiguration", JSONObject(buildFromPlugin(safetyInterface).toString()))
                 json.put("pump", pumpInterface.model().description)
                 json.put("version", config.VERSION_NAME)
             } catch (e: JSONException) {
@@ -96,7 +93,7 @@ class RunningConfigurationImpl @Inject constructor(
                 notificationManager.post(NotificationId.NSCLIENT_VERSION_DOES_NOT_MATCH, R.string.nsclient_version_does_not_match)
         }
         configuration.insulinConfiguration?.let { ic ->
-            insulin.applyConfiguration(ic)
+            applyToPlugin(insulin, ic)
         }
 
         configuration.aps?.let {
@@ -108,7 +105,7 @@ class RunningConfigurationImpl @Inject constructor(
                         aapsLogger.debug(LTag.CORE, "Changing aps plugin to ${apsPlugin.algorithm}")
                         configBuilder.performPluginSwitch(p, true, PluginType.APS)
                     }
-                    configuration.apsConfiguration?.let { ac -> apsPlugin.applyConfiguration(ac) }
+                    configuration.apsConfiguration?.let { ac -> applyToPlugin(apsPlugin, ac) }
                 }
             }
         }
@@ -122,7 +119,7 @@ class RunningConfigurationImpl @Inject constructor(
                         aapsLogger.debug(LTag.CORE, "Changing sensitivity plugin to ${sensitivity.name}")
                         configBuilder.performPluginSwitch(p, true, PluginType.SENSITIVITY)
                     }
-                    configuration.sensitivityConfiguration?.let { sc -> sensitivityPlugin.applyConfiguration(sc) }
+                    configuration.sensitivityConfiguration?.let { sc -> applyToPlugin(sensitivityPlugin, sc) }
                 }
             }
         }
@@ -150,57 +147,28 @@ class RunningConfigurationImpl @Inject constructor(
 
         configuration.overviewConfiguration?.let { applyOverviewConfiguration(it) }
 
-        configuration.safetyConfiguration?.let {
-            activePlugin.activeSafety.applyConfiguration(it)
+        configuration.safetyConfiguration?.let { sc ->
+            applyToPlugin(activePlugin.activeSafety, sc)
         }
     }
 
-    private fun buildOverviewConfiguration(): JsonObject =
-        JsonObject(emptyMap())
-            .put(StringKey.GeneralUnits, preferences)
-            .put(StringNonKey.QuickWizard, preferences)
-            .put(StringNonKey.TempTargetPresets, preferences)
-            .put(UnitDoubleKey.OverviewLowMark, preferences)
-            .put(UnitDoubleKey.OverviewHighMark, preferences)
-            .put(IntKey.OverviewCageWarning, preferences)
-            .put(IntKey.OverviewCageCritical, preferences)
-            .put(IntKey.OverviewIageWarning, preferences)
-            .put(IntKey.OverviewIageCritical, preferences)
-            .put(IntKey.OverviewSageWarning, preferences)
-            .put(IntKey.OverviewSageCritical, preferences)
-            .put(IntKey.OverviewSbatWarning, preferences)
-            .put(IntKey.OverviewSbatCritical, preferences)
-            .put(IntKey.OverviewBageWarning, preferences)
-            .put(IntKey.OverviewBageCritical, preferences)
-            .put(IntKey.OverviewResWarning, preferences)
-            .put(IntKey.OverviewResCritical, preferences)
-            .put(IntKey.OverviewBattWarning, preferences)
-            .put(IntKey.OverviewBattCritical, preferences)
-            .put(IntKey.OverviewBolusPercentage, preferences)
-            .put(BooleanNonKey.AutosensUsedOnMainPhone, constraintsChecker.isAutosensModeEnabled().value())
+    private fun buildFromPlugin(plugin: ConfigExportImport): JsonObject =
+        plugin.syncedKeys.fold(JsonObject(emptyMap())) { acc, k -> acc.put(k, preferences) }
+
+    private fun applyToPlugin(plugin: ConfigExportImport, json: JsonObject) {
+        plugin.syncedKeys.forEach { json.store(it, preferences) }
+        plugin.reloadInternalState()
+    }
+
+    private fun buildOverviewConfiguration(): JsonObject {
+        val base = SyncedConfigSchema.overviewKeys.fold(JsonObject(emptyMap())) { acc, k ->
+            acc.put(k, preferences)
+        }
+        return base.put(BooleanNonKey.AutosensUsedOnMainPhone, constraintsChecker.isAutosensModeEnabled().value())
+    }
 
     private fun applyOverviewConfiguration(configuration: JsonObject) {
-        configuration
-            .store(StringKey.GeneralUnits, preferences)
-            .store(StringNonKey.QuickWizard, preferences)
-            .store(StringNonKey.TempTargetPresets, preferences)
-            .store(UnitDoubleKey.OverviewLowMark, preferences)
-            .store(UnitDoubleKey.OverviewHighMark, preferences)
-            .store(IntKey.OverviewCageWarning, preferences)
-            .store(IntKey.OverviewCageCritical, preferences)
-            .store(IntKey.OverviewIageWarning, preferences)
-            .store(IntKey.OverviewIageCritical, preferences)
-            .store(IntKey.OverviewSageWarning, preferences)
-            .store(IntKey.OverviewSageCritical, preferences)
-            .store(IntKey.OverviewSbatWarning, preferences)
-            .store(IntKey.OverviewSbatCritical, preferences)
-            .store(IntKey.OverviewBageWarning, preferences)
-            .store(IntKey.OverviewBageCritical, preferences)
-            .store(IntKey.OverviewResWarning, preferences)
-            .store(IntKey.OverviewResCritical, preferences)
-            .store(IntKey.OverviewBattWarning, preferences)
-            .store(IntKey.OverviewBattCritical, preferences)
-            .store(IntKey.OverviewBolusPercentage, preferences)
-            .store(BooleanNonKey.AutosensUsedOnMainPhone, preferences)
+        SyncedConfigSchema.overviewKeys.forEach { configuration.store(it, preferences) }
+        configuration.store(BooleanNonKey.AutosensUsedOnMainPhone, preferences)
     }
 }

@@ -32,11 +32,8 @@ import app.aaps.core.keys.interfaces.NonPreferenceKey
 import app.aaps.core.keys.interfaces.Preferences
 import app.aaps.core.keys.interfaces.withEntries
 import app.aaps.core.objects.constraints.ConstraintObject
-import app.aaps.core.objects.extensions.put
-import app.aaps.core.objects.extensions.store
 import app.aaps.core.ui.compose.preference.PreferenceSubScreenDef
 import app.aaps.plugins.constraints.R
-import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,7 +41,7 @@ import javax.inject.Singleton
 class SafetyPlugin @Inject constructor(
     aapsLogger: AAPSLogger,
     rh: ResourceHelper,
-    override val preferences: Preferences,
+    private val preferences: Preferences,
     private val constraintChecker: ConstraintsChecker,
     private val activePlugin: ActivePlugin,
     private val hardLimits: HardLimits,
@@ -172,19 +169,6 @@ class SafetyPlugin @Inject constructor(
     )
 
     override fun reloadInternalState() {}
-
-    override fun configuration(): JsonObject =
-        JsonObject(emptyMap())
-            .put(StringKey.SafetyAge, preferences)
-            .put(DoubleKey.SafetyMaxBolus, preferences)
-            .put(IntKey.SafetyMaxCarbs, preferences)
-
-    override fun applyConfiguration(configuration: JsonObject) {
-        configuration
-            .store(StringKey.SafetyAge, preferences)
-            .store(DoubleKey.SafetyMaxBolus, preferences)
-            .store(IntKey.SafetyMaxCarbs, preferences)
-    }
 
     override fun getPreferenceScreenContent() = PreferenceSubScreenDef(
         key = "safety_settings",
