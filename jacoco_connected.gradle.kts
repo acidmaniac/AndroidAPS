@@ -1,16 +1,28 @@
 apply(plugin = "jacoco")
 
+// Instrumented-only coverage report.
+//
+// Kover (configured in build.gradle.kts) now owns UNIT/HOST coverage and emits the primary
+// JaCoCo-format XML for Codecov. Kover cannot collect on-device (connectedAndroidTest) coverage,
+// so this task aggregates ONLY the instrumented execution data (the .ec produced by AGP's
+// enableAndroidTestCoverage) into a second JaCoCo XML. CircleCI uploads both XMLs and Codecov
+// merges their line hits, preserving the combined unit + instrumented coverage number.
+//
+// Note: JaCoCo cannot filter by annotation, so @Preview functions are NOT excluded from THIS
+// report. They re-enter the denominator only for classes the (small) instrumented suite loads;
+// the unit/host report (the bulk) has them excluded via Kover's annotatedBy filter.
 project.afterEvaluate {
     val variants = listOf("fullDebug")
 
-    tasks.register<JacocoReport>(name = "jacocoAllDebugReport") {
+    tasks.register<JacocoReport>(name = "jacocoConnectedReport") {
 
         group = "Reporting"
-        description = "Generate overall Jacoco coverage report for the debug build."
+        description = "Aggregate JaCoCo coverage for instrumented (connectedAndroidTest) tests only."
 
         reports {
             html.required.set(true)
             xml.required.set(true)
+            xml.outputLocation.set(layout.buildDirectory.file("reports/jacoco/jacoco_connected.xml"))
         }
 
         val excludes = listOf(
@@ -67,14 +79,11 @@ project.afterEvaluate {
         }
         sourceDirectories.setFrom(files(sources))
 
+        // INSTRUMENTED (connected) execution data ONLY. The unit-test .exec branch from the former
+        // jacoco_aggregation.gradle.kts is intentionally dropped — Kover covers unit/host tests.
         val executions = mutableListOf<File>()
         subprojects.forEach { proj ->
             variants.forEach { variant ->
-                val path = proj.layout.buildDirectory.dir("outputs/unit_test_code_coverage/${variant}UnitTest/test${variant.replaceFirstChar(Char::titlecase)}UnitTest.exec").get()
-                files(path).forEach { file ->
-                    println("Collecting execution data from: ${file.absolutePath}")
-                    executions.add(file)
-                }
                 val androidPath = proj.layout.buildDirectory.dir("outputs/code_coverage/${variant}AndroidTest/connected/").get()
                 fileTree(androidPath).forEach { file ->
                     println("Collecting android execution data from: ${file.absolutePath}")

@@ -8,7 +8,7 @@ plugins {
     kotlin("plugin.serialization")
     id("android-app-dependencies")
     id("test-app-dependencies")
-    id("jacoco-app-dependencies")
+    id("kover-module-dependencies")
 }
 
 repositories {
@@ -50,7 +50,9 @@ android {
     android {
         buildTypes {
             debug {
-                enableUnitTestCoverage = true
+                // Kover owns unit-test coverage via its own JaCoCo agent; AGP's agent here would be
+                // a second JaCoCo agent on the same test JVM (duplicate java.lang.$JaCoCo -> crash).
+                enableUnitTestCoverage = false
                 // Disable androidTest coverage, since it performs offline coverage
                 // instrumentation and that causes online (JavaAgent) instrumentation
                 // to fail in this project.

@@ -8,7 +8,7 @@
  * tests run JUnit4-style; the vintage engine bridges them onto the JUnit Platform alongside the
  * existing Jupiter tests (useJUnitPlatform() comes from test-module-dependencies).
  *
- * Pair with `jacoco-module-dependencies` for coverage of the Robolectric-loaded Compose classes.
+ * Pair with `kover-module-dependencies` for coverage of the Robolectric-loaded Compose classes.
  */
 plugins {
     id("com.android.library")

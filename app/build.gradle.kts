@@ -10,7 +10,7 @@ plugins {
     id("com.google.firebase.crashlytics")
     id("android-app-dependencies")
     id("test-app-dependencies")
-    id("jacoco-app-dependencies")
+    id("kover-module-dependencies")
 }
 
 repositories {

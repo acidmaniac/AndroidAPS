@@ -61,7 +61,7 @@ jobs:
             adb devices | grep emulator | cut -f1 | while read -r line; do adb -s $line emu kill; done
 
       - run:
-          name: Run testFullDebugUnitTest
+          name: Run unit tests and aggregate Kover (unit/host) coverage
           command: |
             export ANDROID_SDK_ROOT=/usr/lib/android-sdk
             export ANDROID_HOME=/usr/lib/android-sdk
@@ -70,14 +70,15 @@ jobs:
             -Dkotlin.daemon.jvm.options="-Xmx3g" \
             -Dorg.gradle.workers.max=22 \
             -Dorg.gradle.daemon=true \
-            testFullDebugUnitTest
+            --stacktrace \
+            koverXmlReportFullDebugAggregated
 
       - run:
-          name: Run jacocoAllDebugReport
+          name: Aggregate instrumented (connectedAndroidTest) coverage
           command: |
             export ANDROID_SDK_ROOT=/usr/lib/android-sdk
             export ANDROID_HOME=/usr/lib/android-sdk
-            ./gradlew --stacktrace jacocoAllDebugReport
+            ./gradlew --stacktrace jacocoConnectedReport
 
       - run:
           name: Save test results
@@ -92,8 +93,11 @@ jobs:
       - store_artifacts:
           path: ~/test-results/junit
 
+      # Two reports: Kover (unit/host, @Preview excluded) + JaCoCo (instrumented). Codecov merges them.
       - codecov/upload:
-          file: './build/reports/jacoco/jacocoAllDebugReport/jacocoAllDebugReport.xml'
+          file: './build/reports/kover/report.xml'
+      - codecov/upload:
+          file: './build/reports/jacoco/jacoco_connected.xml'
 
       - run:
           name: Kill java processes

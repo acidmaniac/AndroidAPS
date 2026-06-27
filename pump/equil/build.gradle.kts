@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.hilt)
     id("android-module-dependencies")
     id("test-module-dependencies")
-    id("jacoco-module-dependencies")
+    id("kover-module-dependencies")
 }
 
 

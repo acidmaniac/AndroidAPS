@@ -15,7 +15,12 @@ android {
             setProguardFiles(listOf(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"))
         }
         named("debug") {
-            enableUnitTestCoverage = true
+            // Kover (kover-module-dependencies) owns unit-test coverage via its own JaCoCo agent.
+            // AGP's agent here would be a SECOND JaCoCo agent on the same unit-test JVM, defining
+            // java.lang.$JaCoCo twice and crashing the test executor. Keep it off.
+            enableUnitTestCoverage = false
+            // On-device (connected) instrumentation runs in a separate process and feeds the
+            // standalone JaCoCo connected-coverage report (Kover cannot collect instrumented tests).
             enableAndroidTestCoverage = true
         }
     }

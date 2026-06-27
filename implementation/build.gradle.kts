@@ -6,7 +6,7 @@ plugins {
     id("android-module-dependencies")
     id("all-open-dependencies")
     id("test-module-dependencies")
-    id("jacoco-module-dependencies")
+    id("kover-module-dependencies")
 }
 
 android {

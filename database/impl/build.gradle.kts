@@ -4,7 +4,7 @@ plugins {
     kotlin("plugin.allopen")
     id("android-module-dependencies")
     id("test-module-dependencies")
-    id("jacoco-module-dependencies")
+    id("kover-module-dependencies")
 }
 
 android {

@@ -29,10 +29,10 @@ jobs:
           test-command: ./gradlew connectedFullDebugAndroidTest
 
       - android/run-tests:
-          test-command: ./gradlew testFullDebugUnitTest
+          test-command: ./gradlew --stacktrace koverXmlReportFullDebugAggregated
 
       - android/run-tests:
-          test-command: ./gradlew --stacktrace jacocoAllDebugReport
+          test-command: ./gradlew --stacktrace jacocoConnectedReport
 
       - run:
           name: Save test results
@@ -47,8 +47,11 @@ jobs:
       - store_artifacts:
           path: ~/test-results/junit
 
+      # Two reports: Kover (unit/host, @Preview excluded) + JaCoCo (instrumented). Codecov merges them.
       - codecov/upload:
-          file: './build/reports/jacoco/jacocoAllDebugReport/jacocoAllDebugReport.xml'
+          file: './build/reports/kover/report.xml'
+      - codecov/upload:
+          file: './build/reports/jacoco/jacoco_connected.xml'
 
 workflows:
   # Below is the definition of your workflow.
