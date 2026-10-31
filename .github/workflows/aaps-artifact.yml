@@ -51,6 +51,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Pobieram tag ze zrodla AAPS
+        run: |
+          git remote add upstream https://github.com/nightscout/AndroidAPS.git || true
+          git fetch upstream refs/tags/${{ github.event.inputs.tagName }}:refs/tags/${{ github.event.inputs.tagName }} || true
+          git checkout refs/tags/${{ github.event.inputs.tagName }} || git checkout ${{ github.event.inputs.tagName }}
+
+      # jdk-map.json czytamy PO checkoucie tagu - inaczej przy istniejacym forku
+      # bralibysmy mape ze starej domyslnej galezi (zly JDK -> build sie wywala).
       - name: Wybieram wersje JDK
         run: |
           TAG="${{ github.event.inputs.tagName }}"
@@ -60,12 +68,6 @@ jobs:
           done < <(jq -r '.mappings[] | "\(.pattern)\t\(.jdk)"' .github/jdk-map.json)
           echo "JAVA_VERSION=$JAVA_VERSION" >> $GITHUB_ENV
           echo "Tag $TAG -> JDK $JAVA_VERSION"
-
-      - name: Pobieram tag ze zrodla AAPS
-        run: |
-          git remote add upstream https://github.com/nightscout/AndroidAPS.git || true
-          git fetch upstream refs/tags/${{ github.event.inputs.tagName }}:refs/tags/${{ github.event.inputs.tagName }} || true
-          git checkout refs/tags/${{ github.event.inputs.tagName }} || git checkout ${{ github.event.inputs.tagName }}
 
       - name: Ustawiam zmienne wariantu
         run: |
